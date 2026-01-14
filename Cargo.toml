@@ -1,0 +1,12 @@
+[package]
+name = "tznow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4"
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive"] }
+toml = "0.7"
+dirs = "5.0"   # to locate ~/.config directory
+serde = { version = "1.0", features = ["derive"] }

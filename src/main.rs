@@ -1,86 +1,113 @@
-use chrono::prelude::*;
+use chrono::{DateTime, Local, Utc};
 use chrono_tz::Tz;
 use clap::Parser;
-use dirs::config_dir;
-use serde::Deserialize;
-use std::{fs, thread, time::Duration};
+use crossterm::{
+    cursor::{Hide, MoveTo, Show},
+    execute,
+    terminal::{Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::borrow::Cow;
+use std::{
+    io::{Write, stdout},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Duration,
+};
+
+// use time_tz::timezones::db::america::New_York;
 
 #[derive(Parser)]
-struct Cli {
+#[command(name = "tznow")]
+struct Args {
+    /// Watch interval in seconds (supports sub-second, e.g. 0.1)
+    #[arg(long,
+        num_args = 0..=1,
+        default_missing_value = "1"
+        )]
+    watch: Option<f64>,
+
+    /// Timezones (aliases allowed)
     zones: Vec<String>,
-    #[arg(long)]
-    format24: bool,
-    #[arg(long)]
-    watch: Option<f64>, // fractional seconds
 }
 
-#[derive(Deserialize)]
-struct Config {
-    zones: Option<Vec<String>>,
-    format24: Option<bool>,
-}
-
-fn resolve_alias(zone: &str) -> String {
+fn resolve_alias(zone: &str) -> Cow<'_, str> {
     match zone.to_uppercase().as_str() {
-        "IST" => "Asia/Kolkata".to_string(),
-        "PST" => "America/Los_Angeles".to_string(),
-        "EST" => "America/New_York".to_string(),
-        "UTC" => "UTC".to_string(),
-        other => other.to_string(),
+        "IST" => Cow::Borrowed("Asia/Kolkata"),
+        "PST" => Cow::Borrowed("America/Los_Angeles"),
+        "EST" => Cow::Borrowed("America/New_York"),
+        "EAT" => Cow::Borrowed("Africa/Addis_Ababa"),
+        "CET" => Cow::Borrowed("Africa/Algiers"),
+        "WAT" => Cow::Borrowed("Africa/Bangui"),
+        "CAT" => Cow::Borrowed("Africa/Blantyre"),
+        "SAST" => Cow::Borrowed("Africa/Johannesburg"),
+        "" => Cow::Borrowed(""),
+        "UTC" => Cow::Borrowed("UTC"),
+        _ => Cow::Borrowed(zone),
     }
 }
 
+fn print_times(zones: &[String]) {
+    // let mut out = stdout();
+    // execute!(out, MoveTo(0, 0), Clear(ClearType::All)).unwrap();
 
-fn load_config() -> Option<Config> {
-    let mut path = config_dir()?;
-    path.push("tznow/config.toml");
-    let content = fs::read_to_string(path).ok()?;
-    toml::from_str(&content).ok()
-}
+    println!("🕒 Time Zones");
+    println!("────────────────────────");
 
-fn print_times(zones: &[String], format24: bool) {
-    print!("\x1B[2J\x1B[H"); // clear terminal
-    let now_utc = Utc::now();
+    // Local time
+    let local: DateTime<Local> = Local::now();
+    println!("Local          {}", local.format("%Y-%m-%d %H:%M:%S"));
 
-    for z in zones {
-        let zone_name = resolve_alias(z);
-        if zone_name == "LOCAL" {
-            // local system time
-            let local = Local::now();
-            let fmt = if format24 { "%H:%M:%S" } else { "%I:%M:%S %p" };
-            println!("{:<20} {}", "Local", local.format(fmt));
-        } else if let Ok(tz) = zone_name.parse::<Tz>() {
-            let time = now_utc.with_timezone(&tz);
-            let fmt = if format24 { "%H:%M:%S" } else { "%I:%M:%S %p" };
-            println!("{:<20} {}", zone_name, time.format(fmt));
-        } else {
-            println!("❌ Invalid timezone: {}", zone_name);
+    // UTC
+    let utc: DateTime<Utc> = Utc::now();
+    println!("UTC            {}", utc.format("%Y-%m-%d %H:%M:%S"));
+
+    for zone in zones {
+        let resolved = resolve_alias(zone);
+        match resolved.parse::<Tz>() {
+            Ok(tz) => {
+                let now = Utc::now().with_timezone(&tz);
+                println!("{:<14} {}", zone, now.format("%Y-%m-%d %H:%M:%S"));
+            }
+            Err(_) => {
+                println!("{:<14} ❌ Invalid timezone", zone);
+            }
         }
     }
 }
-
 
 fn main() {
-    let cli = Cli::parse();
-    let config = load_config();
+    let args = Args::parse();
 
-    let zones = if !cli.zones.is_empty() {
-        cli.zones.clone()
-    } else if let Some(cfg) = &config {
-        cfg.zones.clone().unwrap_or_else(|| vec!["Local".to_string(), "UTC".to_string()])
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    let mut stdout = stdout();
+
+    let interval = args.watch.unwrap_or(0.0);
+
+    if interval <= 0.0 {
+        print_times(&args.zones);
     } else {
-        vec!["Local".to_string(), "UTC".to_string()]
-    };
+        // ✅ Take control of terminal
+        execute!(stdout, EnterAlternateScreen, Hide).unwrap();
+        let sleep = Duration::from_secs_f64(interval);
 
-    let format24 = cli.format24 || config.as_ref().and_then(|c| c.format24).unwrap_or(false);
-
-    if let Some(interval) = cli.watch {
-        let sleep_duration = Duration::from_secs_f64(interval);
-        loop {
-            print_times(&zones, format24);
-            thread::sleep(sleep_duration);
+        while running.load(Ordering::SeqCst) {
+            // move the position on top
+            execute!(stdout, MoveTo(0, 0), Clear(ClearType::All)).unwrap();
+            print_times(&args.zones);
+            thread::sleep(sleep);
+            stdout.flush().unwrap();
         }
-    } else {
-        print_times(&zones, format24);
+        // ✅ Restore terminal cleanly
+        execute!(stdout, Show, LeaveAlternateScreen).unwrap();
     }
 }

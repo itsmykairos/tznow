@@ -127,7 +127,7 @@ Requirements:
 - Rust 1.70 or higher
 
 ```bash
-git clone https://github.com/yourusername/tznow.git
+git clone https://github.com/itsmykairos/tznow.git
 cd tznow
 cargo build --release
 ```
@@ -162,6 +162,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with 🦀 by [Your Name]**
+**Made with 🦀 by [Kairos]**
 
 *Star ⭐ this repo if you find it useful!*

@@ -2,9 +2,12 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
+
+#  push:
+#    branches:
+#      - 'main'
+
 
 jobs:
   build:

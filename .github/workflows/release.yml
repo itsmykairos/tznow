@@ -35,10 +35,10 @@ jobs:
       - name: Create archive
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf your-time-tool-${{ matrix.target }}.tar.gz your-time-tool
-          mv your-time-tool-${{ matrix.target }}.tar.gz ../../..
+          tar czf tznow-${{ matrix.target }}.tar.gz tznow
+          mv tznow-${{ matrix.target }}.tar.gz ../../..
       
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:
-          files: your-time-tool-${{ matrix.target }}.tar.gz
+          files: tznow-${{ matrix.target }}.tar.gz

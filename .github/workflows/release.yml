@@ -2,12 +2,9 @@
 name: Release
 
 on:
-  workflow_dispatch:
-
-#  push:
-#    branches:
-#      - 'main'
-
+  push:
+    tags:
+      - 'v*'  # Triggers on tags like v1.0.0, v1.2.3, etc.
 
 jobs:
   build:
@@ -18,26 +15,26 @@ jobs:
             target: x86_64-apple-darwin
           - os: macos-latest
             target: aarch64-apple-darwin
-    
+
     runs-on: ${{ matrix.os }}
-    
+
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
-      
+
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
-      
+
       - name: Create archive
         run: |
           cd target/${{ matrix.target }}/release
           tar czf tznow-${{ matrix.target }}.tar.gz tznow
           mv tznow-${{ matrix.target }}.tar.gz ../../..
-      
+
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:

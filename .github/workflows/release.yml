@@ -4,7 +4,10 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'  # Triggers on tags like v1.0.0, v1.2.3, etc.
+      - 'v*'
+
+permissions:
+  contents: write  # This allows creating releases
 
 jobs:
   build:
